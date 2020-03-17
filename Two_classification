@@ -1,0 +1,677 @@
+# -*- coding:utf-8 -*-
+import pandas as pd
+import numpy as np
+import os
+import readcsv_test
+import readcsv_train
+from sklearn.cluster import KMeans
+from sklearn.externals import joblib
+from sklearn import decomposition
+from sklearn.manifold import TSNE
+from sklearn import preprocessing
+from collections import Counter
+import matplotlib.pylab as plt
+
+def get_data():
+    #read data from csv
+    action_data=readcsv_train.read_data_train()
+    # 删除出现次数比较小的类别
+    action_data = action_data[~action_data["action"].isin(["泥泞"])]
+    action_data = action_data[~action_data["action"].isin(["下坡"])]
+    action_data = action_data[~action_data["action"].isin(["爬坡"])]
+    action_data = action_data[~action_data["action"].isin(["车辙桥"])]
+    action_data = action_data[~action_data["action"].isin(["崖壁"])]
+    action_data = action_data[~action_data["action"].isin(["土岭"])]
+
+    # 获取目标数据
+    # 分类值,并将分类数值数字化
+    y_data = action_data['action']
+    y_data.replace([u"减速", u"加速", u"左转", u"右转", u"颠簸"], [0, 1, 2, 3, 4], inplace=True)
+    y_data = pd.DataFrame(y_data, columns=['action'])
+
+    # 获取特征值,并将特征分为3(g),3(a),3(m),3(o),4(q)
+    x_data = action_data
+    x_data = x_data.drop("action", axis=1)
+    x_data,y_data=size_transform(x_data,y_data,8)
+    return x_data,y_data
+
+
+def get_test_data():
+    # read data from csv
+    action_data = readcsv_test.read_data_test()
+    # 删除出现次数比较小的类别
+    action_data = action_data[~action_data["action"].isin(["泥泞"])]
+    action_data = action_data[~action_data["action"].isin(["下坡"])]
+    action_data = action_data[~action_data["action"].isin(["爬坡"])]
+    action_data = action_data[~action_data["action"].isin(["车辙桥"])]
+    action_data = action_data[~action_data["action"].isin(["崖壁"])]
+    action_data = action_data[~action_data["action"].isin(["土岭"])]
+
+    # 获取目标数据
+    # 分类值,并将分类数值数字化
+    y_data = action_data['action']
+    y_data.replace([u"减速", u"加速", u"左转", u"右转", u"颠簸"], [0, 1, 2, 3, 4], inplace=True)
+    y_data = pd.DataFrame(y_data, columns=['action'])
+
+    # 获取特征值,并将特征分为3(g),3(a),3(m),3(o),4(q)
+    x_data = action_data
+    x_data = x_data.drop("action", axis=1)
+    x_data,y_data=size_transform(x_data,y_data,8)
+    return x_data,y_data
+
+def get_mean_value(x_data_type):
+    # 寻找平均值作为每个特征的代表值以至于可以缩小到一维
+    x_data_type_values=x_data_type.values
+    for i in range(x_data_type_values.shape[0]):
+        len_f = len(x_data_type_values[i][0])
+        for j in range(x_data_type_values.shape[1]):
+            tmp = np.mean(x_data_type_values[i][j], axis=0)
+            k = len_f
+            for m in range(k):
+                x_data_type_values[i][j] = np.delete(x_data_type_values[i][j], [len(x_data_type_values[i][j]) - 1], 0)
+            x_data_type_values[i][j] = np.append(x_data_type_values[i][j], [tmp], 0)
+    (row, col) = x_data_type_values.shape
+    x_data_type = [[0 for col in range(col)] for i in range(row)]
+    for i in range(x_data_type_values.shape[0]):
+        for j in range(x_data_type_values.shape[1]):
+            x_data_type[i][j] = x_data_type_values[i][j][0]
+    x_data_type = np.array(x_data_type)
+    return x_data_type
+
+def get_sqrt_value(x_data_type):
+    x_data_type_values=x_data_type.values
+    x_data_tmp=[[[]for i in range(x_data_type_values.shape[1])]for j in range(x_data_type_values.shape[0])]
+    for i,val_1 in enumerate(x_data_type_values):
+        for j,val_2 in enumerate(val_1):
+            t=[]#存储差值
+            for k in range(len(val_2)-1):
+                t.append(val_2[k+1]-val_2[k])
+            t=np.array(t)
+            x_data_tmp[i][j]=np.std(t)
+    x_data_tmp=np.array(x_data_tmp)
+    return x_data_tmp
+
+
+
+def size_transform(x_data,y_data,size):
+    f0 = x_data['f0'].values
+    f1 = x_data['f1'].values
+    f2 = x_data['f2'].values
+    f3 = x_data['f3'].values
+    f4 = x_data['f4'].values
+    f5 = x_data['f5'].values
+    f6 = x_data['f6'].values
+    f7 = x_data['f7'].values
+    f8 = x_data['f8'].values
+    f9 = x_data['f9'].values
+    f10 = x_data['f10'].values
+    f11 = x_data['f11'].values
+    f12 = x_data['f12'].values
+    f13 = x_data['f13'].values
+    f14 = x_data['f14'].values
+    f15 = x_data['f15'].values
+    labels = y_data.values
+    labels=np.squeeze(labels)
+    f0_ = []
+    f1_ = []
+    f2_ = []
+    f3_ = []
+    f4_ = []
+    f5_ = []
+    f6_ = []
+    f7_ = []
+    f8_ = []
+    f9_ = []
+    f10_ = []
+    f11_ = []
+    f12_ = []
+    f13_ = []
+    f14_ = []
+    f15_ = []
+    label = []
+    for i, x in enumerate(f0):
+        for v in x:
+            f0_.append(v)
+            label.append(labels[i])
+    for i, x in enumerate(f1):
+        for v in x:
+            f1_.append(v)
+            #label.append(labels[i])
+    for i, x in enumerate(f2):
+        for v in x:
+            f2_.append(v)
+            # label.append(labels[i])
+    for i, x in enumerate(f3):
+        for v in x:
+            f3_.append(v)
+            # label.append(labels[i])
+    for i, x in enumerate(f4):
+        for v in x:
+            f4_.append(v)
+            # label.append(labels[i])
+    for i, x in enumerate(f5):
+        for v in x:
+            f5_.append(v)
+    for i, x in enumerate(f6):
+        for v in x:
+            f6_.append(v)
+    for i, x in enumerate(f7):
+        for v in x:
+            f7_.append(v)
+    for i, x in enumerate(f8):
+        for v in x:
+            f8_.append(v)
+    for i, x in enumerate(f9):
+        for v in x:
+            f9_.append(v)
+    for i, x in enumerate(f10):
+        for v in x:
+            f10_.append(v)
+    for i, x in enumerate(f11):
+        for v in x:
+            f11_.append(v)
+    for i, x in enumerate(f12):
+        for v in x:
+            f12_.append(v)
+    for i, x in enumerate(f13):
+        for v in x:
+            f13_.append(v)
+    for i, x in enumerate(f14):
+        for v in x:
+            f14_.append(v)
+    for i, x in enumerate(f15):
+        for v in x:
+            f15_.append(v)
+
+    fs = [[[0]*size for i in range(16)]for i in range(5000)]
+    ls = []
+    cnt=0
+    for i, (f0,f1, f2, f3, f4, f5, f6, f7, f8, f9,f10,f11,f12,f13,f14,f15,l) in enumerate(
+        zip(f0_,f1_, f2_, f3_, f4_, f5_, f6_, f7_, f8_, f9_,f10_,f11_,f12_,f13_,f14_,f15_,label)):
+        flag=0
+        if i <len(label)-8:
+            for j in range(size-1):
+                if label[i]==label[i+j+1] :
+                    #print(label[i])
+                    #print(label[i+1])
+                    continue
+                else:
+                    flag=1
+        if i!=0 and i%size == 0 and flag==0 and cnt <= 5000:
+            for k in range(size):
+                fs[cnt][0][k]=f0_[i+k-size]
+            for k in range(size):
+                fs[cnt][1][k]=f1_[i+k-size]
+            for k in range(size):
+                fs[cnt][2][k]=f2_[i+k-size]
+            for k in range(size):
+                fs[cnt][3][k]=f3_[i+k-size]
+            for k in range(size):
+                fs[cnt][4][k]=f4_[i+k-size]
+            for k in range(size):
+                fs[cnt][5][k]=f5_[i+k-size]
+            for k in range(size):
+                fs[cnt][6][k]=f6_[i+k-size]
+            for k in range(size):
+                fs[cnt][7][k]=f7_[i+k-size]
+            for k in range(size):
+                fs[cnt][8][k]=f8_[i+k-size]
+            for k in range(size):
+                fs[cnt][9][k]=f9_[i+k-size]
+            for k in range(size):
+                fs[cnt][10][k]=f10_[i+k-size]
+            for k in range(size):
+                fs[cnt][11][k]=f11_[i+k-size]
+            for k in range(size):
+                fs[cnt][12][k]=f12_[i+k-size]
+            for k in range(size):
+                fs[cnt][13][k]=f13_[i+k-size]
+            for k in range(size):
+                fs[cnt][14][k]=f14_[i+k-size]
+            for k in range(size):
+                fs[cnt][15][k]=f15_[i+k-size]
+            cnt=cnt+1
+            ls.append(label[i-2])
+    ls=np.array(ls)
+    ls=np.squeeze(ls)
+    ls=pd.DataFrame(ls,columns=['action'])
+    fs=pd.DataFrame(fs,columns=['f0','f1','f2','f3','f4','f5','f6','f7','f8','f9','f10','f11','f12','f13','f14','f15'])
+    fs=fs.iloc[0:cnt]
+    return  fs,ls
+            #ls.append(label[i-2])
+
+def k_means(x_data,y_data,x_test,y_test,label):
+    y=np.array(y_data)
+    y=np.squeeze(y)
+    y_=np.array(y_test)
+    y_=np.squeeze(y_)
+    left_y=y.copy()
+    left_y_test=y_.copy()
+    for i in range(left_y.shape[0]):
+        if left_y[i] != label :
+            left_y[i]=0
+        else:
+            left_y[i]=1
+
+    for i in range(left_y_test.shape[0]):
+        if left_y_test[i] != label:
+            left_y_test[i]=0
+        else :
+            left_y_test[i]=1
+
+    x_train=x_data
+    y_train=left_y
+    # 初始化聚类构造器，分类类别暂时考虑5个类别
+    kmeans = KMeans(n_clusters=2)
+    accu=0
+    t=0
+    y_predict_t=[]
+    while (accu < 0.5):
+        kmeans.fit(x_train, y_train)
+        y_predict = kmeans.predict(x_test)
+        accu=sum(y_predict==left_y_test)/len(left_y_test)
+        y_predict_t=y_predict
+        t=accu
+    if(label==0):
+        print('slowdown')
+    elif(label==1):
+        print('speed_up')
+    elif(label==2):
+        print('left')
+    elif(label==3):
+        print('right')
+    elif(label==4):
+        print('bumps')
+    print(t)
+    print(left_y_test)
+    print(Counter(left_y_test))
+    print(y_predict_t)
+    print(Counter(y_predict_t))
+    if(label==0):
+        joblib.dump(kmeans, 'km_model_0.pkl')
+    elif(label==1):
+        joblib.dump(kmeans, 'km_model_1.pkl')
+    elif(label==2):
+        joblib.dump(kmeans, 'km_model_2.pkl')
+    elif(label==3):
+        joblib.dump(kmeans, 'km_model_3.pkl')
+    elif(label==4):
+        joblib.dump(kmeans, 'km_model_4.pkl')
+    #return y_predict
+    #accuracy=sum(y_predict==left_y_test)/len(left_y_test)
+
+    '''
+    print(y_train)
+    print(y_predict)
+    print('\n')
+    print(sum(y_predict==left_y_test)/len(left_y_test))
+    print('y_train')
+    print(Counter(y_train))
+    print('y_test')
+    print(Counter(left_y_test))
+    print('y_predict')
+    print(Counter(y_predict))
+    print('\n')
+
+    # lables = kmeans.labels_
+    tsne = TSNE()
+    a = tsne.fit_transform(x_train)
+    actionType = pd.DataFrame(a)
+    lables = pd.DataFrame(y_predict, columns=['lables'])
+    # print(lables)
+    d1 = actionType[lables['lables'] == 0]
+    d2 = actionType[lables['lables'] == 1]
+    #d3 = actionType[lables['lables'] == 2]
+    '''
+    '''
+    d4 = actionType[lables['lables'] == 3]
+    d5 = actionType[lables['lables'] == 4]
+
+    
+    # d6=actionType[lables['lables']==5]
+    plt.figure()
+    plt.plot(d1[0], d1[1], 'r.', d2[0], d2[1], 'go')
+    plt.xlabel('x_test')
+    plt.ylabel('y_predict')
+    plt.legend()
+    plt.grid(True)
+
+    y_train=pd.DataFrame(y_train,columns=['action'])
+    actionType2 = pd.DataFrame(a)
+    d7 = actionType2[y_train['action'] == 0]
+    d8 = actionType2[y_train['action'] == 1]
+
+    #d9 = actionType2[y_test['action'] == 2]
+    #d10 = actionType2[y_test['action'] == 3]
+    #d11 = actionType2[y_test['action'] == 4]
+    # d6=actionType[lables['lables']==5]
+    
+    plt.figure()
+    plt.plot(d7[0], d7[1], 'r.', d8[0], d8[1], 'go')
+    plt.xlabel('x_test')
+    plt.ylabel('y_test')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+    '''
+
+
+def two_classification():
+    x_data,y_data=get_data()
+    x_test,y_test=get_test_data()
+
+    #left
+    #print('left')
+    #print('f0-f2')
+    if(os.path.exists('km_model_2.pkl') == False):
+        x_data_left=x_data.loc[:,['f0','f1','f2']]
+        x_test_left=x_test.loc[:,['f0','f1','f2']]
+        x_data_left_val=get_mean_value(x_data_left)
+        x_test_left_val=get_mean_value(x_test_left)
+        k_means(x_data_left_val,y_data,x_test_left_val,y_test,2)
+    km_model_2=joblib.load('km_model_2.pkl')
+    cent_points_2=km_model_2.cluster_centers_
+
+
+    '''
+    print('f3-f5')
+    x_data_left = x_data.loc[:, ['f3', 'f4', 'f5']]
+    x_test_left = x_test.loc[:, ['f3', 'f4', 'f5']]
+    x_data_left_val = get_mean_value(x_data_left)
+    x_test_left_val = get_mean_value(x_test_left)
+    k_means(x_data_left_val, y_data, x_test_left_val, y_test, 2)
+
+    print('f6-f8')
+    x_data_left = x_data.loc[:, ['f6', 'f7', 'f8']]
+    x_test_left = x_test.loc[:, ['f6', 'f7', 'f8']]
+    x_data_left_val = get_mean_value(x_data_left)
+    x_test_left_val = get_mean_value(x_test_left)
+    k_means(x_data_left_val, y_data, x_test_left_val, y_test, 2)
+
+    print('f9-f11')
+    x_data_left = x_data.loc[:, ['f9', 'f10', 'f11']]
+    x_test_left = x_test.loc[:, ['f9', 'f10', 'f11']]
+    x_data_left_val = get_mean_value(x_data_left)
+    x_test_left_val = get_mean_value(x_test_left)
+    k_means(x_data_left_val, y_data, x_test_left_val, y_test, 2)
+
+    print('f12-f15')
+    x_data_left = x_data.loc[:, ['f12','f13','f14','f15']]
+    x_test_left = x_test.loc[:, ['f12','f13','f14','f15']]
+    x_data_left_val = get_mean_value(x_data_left)
+    x_test_left_val = get_mean_value(x_test_left)
+    k_means(x_data_left_val, y_data, x_test_left_val, y_test, 2)
+    '''
+    
+    #right
+    #print('right')
+    #print('f0-f2')
+    if (os.path.exists('km_model_3.pkl') == False):
+        x_data_right = x_data.loc[:, ['f0', 'f1', 'f2']]
+        x_test_right = x_test.loc[:, ['f0', 'f1', 'f2']]
+        x_data_right_val = get_mean_value(x_data_right)
+        x_test_right_val = get_mean_value(x_test_right)
+        k_means(x_data_right_val, y_data, x_test_right_val, y_test, 3)
+    km_model_3 = joblib.load('km_model_3.pkl')
+    cent_points_3 = km_model_3.cluster_centers_
+
+
+    '''
+    print('f3-f5')
+    x_data_right = x_data.loc[:, ['f3', 'f4', 'f5']]
+    x_test_right = x_test.loc[:, ['f3', 'f4', 'f5']]
+    x_data_right_val = get_mean_value(x_data_right)
+    x_test_right_val = get_mean_value(x_test_right)
+    k_means(x_data_right_val, y_data, x_test_right_val, y_test, 3)
+
+    print('f6-f8')
+    x_data_right = x_data.loc[:, ['f6', 'f7', 'f8']]
+    x_test_right = x_test.loc[:, ['f6', 'f7', 'f8']]
+    x_data_right_val = get_mean_value(x_data_right)
+    x_test_right_val = get_mean_value(x_test_right)
+    k_means(x_data_right_val, y_data, x_test_right_val, y_test, 3)
+
+    print('f9-f11')
+    x_data_right = x_data.loc[:, ['f9', 'f10', 'f11']]
+    x_test_right = x_test.loc[:, ['f9', 'f10', 'f11']]
+    x_data_right_val = get_mean_value(x_data_right)
+    x_test_right_val = get_mean_value(x_test_right)
+    k_means(x_data_right_val, y_data, x_test_right_val, y_test, 3)
+    '''
+    #print('f12-f15')
+    '''
+    x_data_right = x_data.loc[:, ['f12', 'f13', 'f14','f15']]
+    x_test_right = x_test.loc[:, ['f12', 'f13', 'f14','f15']]
+    x_data_right_val = get_mean_value(x_data_right)
+    x_test_right_val = get_mean_value(x_test_right)
+    y_predict_right_f12_f15,accuracy_right_f12_f15=k_means(x_data_right_val, y_data, x_test_right_val, y_test, 3)
+    '''
+    
+    
+    
+    #speed_up
+    #print('speed_up')
+    #print('f0-f2')
+    if (os.path.exists('km_model_1.pkl') == False):
+        x_data_speed_up = x_data.loc[:, ['f0', 'f1', 'f2']]
+        x_test_speed_up = x_test.loc[:, ['f0', 'f1', 'f2']]
+        x_data_speed_up_val = get_mean_value(x_data_speed_up)
+        x_test_speed_up_val = get_mean_value(x_test_speed_up)
+        k_means(x_data_speed_up_val, y_data, x_test_speed_up_val, y_test, 1)
+    km_model_1 = joblib.load('km_model_1.pkl')
+    cent_points_1 = km_model_1.cluster_centers_
+
+
+    '''
+    print('f3-f5')
+    x_data_speed_up = x_data.loc[:, ['f3', 'f4', 'f5']]
+    x_test_speed_up = x_test.loc[:, ['f3', 'f4', 'f5']]
+    x_data_speed_up_val = get_mean_value(x_data_speed_up)
+    x_test_speed_up_val = get_mean_value(x_test_speed_up)
+    k_means(x_data_speed_up_val, y_data, x_test_speed_up_val, y_test, 1)
+
+    print('f6-f8')
+    x_data_speed_up = x_data.loc[:, ['f6', 'f7', 'f8']]
+    x_test_speed_up = x_test.loc[:, ['f6', 'f7', 'f8']]
+    x_data_speed_up_val = get_mean_value(x_data_speed_up)
+    x_test_speed_up_val = get_mean_value(x_test_speed_up)
+    k_means(x_data_speed_up_val, y_data, x_test_speed_up_val, y_test, 1)
+    '''
+    '''
+    #print('f9-f11')
+    x_data_speed_up = x_data.loc[:, ['f9', 'f10', 'f11']]
+    x_test_speed_up = x_test.loc[:, ['f9', 'f10', 'f11']]
+    x_data_speed_up_val = get_mean_value(x_data_speed_up)
+    x_test_speed_up_val = get_mean_value(x_test_speed_up)
+    y_predict_speed_up_f9_f11,accuracy_speed_up_f9_f11=k_means(x_data_speed_up_val, y_data, x_test_speed_up_val, y_test, 1)
+    '''
+
+    '''
+    print('f12-f15')
+    x_data_speed_up = x_data.loc[:, ['f12', 'f13', 'f14','f15']]
+    x_test_speed_up = x_test.loc[:, ['f12', 'f13', 'f14','f15']]
+    x_data_speed_up_val = get_mean_value(x_data_speed_up)
+    x_test_speed_up_val = get_mean_value(x_test_speed_up)
+    k_means(x_data_speed_up_val, y_data, x_test_speed_up_val, y_test, 1)
+    
+    #f0-f2:0.6904
+    #f3-f5:0.244
+    #f6-f8:0.244
+    #f9-f11:0.6405
+    #f12-f15:0.451914
+
+    '''
+    #slow_down
+    #print('slow_down')
+    #print('f0-f2')
+    if (os.path.exists('km_model_0.pkl') == False):
+        x_data_slow_down = x_data.loc[:, ['f0', 'f1', 'f2']]
+        x_test_slow_down = x_test.loc[:, ['f0', 'f1', 'f2']]
+        x_data_slow_down_val = get_mean_value(x_data_slow_down)
+        x_test_slow_down_val = get_mean_value(x_test_slow_down)
+        k_means(x_data_slow_down_val, y_data, x_test_slow_down_val, y_test, 0)
+    km_model_0 = joblib.load('km_model_0.pkl')
+    cent_points_0 = km_model_0.cluster_centers_
+
+    '''
+    print('f3-f5')
+    x_data_slow_down = x_data.loc[:, ['f3', 'f4', 'f5']]
+    x_test_slow_down = x_test.loc[:, ['f3', 'f4', 'f5']]
+    x_data_slow_down_val = get_mean_value(x_data_slow_down)
+    x_test_slow_down_val = get_mean_value(x_test_slow_down)
+    k_means(x_data_slow_down_val, y_data, x_test_slow_down_val, y_test, 0)
+
+    print('f6-f8')
+    x_data_slow_down = x_data.loc[:, ['f6', 'f7', 'f8']]
+    x_test_slow_down = x_test.loc[:, ['f6', 'f7', 'f8']]
+    x_data_slow_down_val = get_mean_value(x_data_slow_down)
+    x_test_slow_down_val = get_mean_value(x_test_slow_down)
+    k_means(x_data_slow_down_val, y_data, x_test_slow_down_val, y_test, 0)
+    '''
+    '''
+    #print('f9-f11')
+    x_data_slow_down = x_data.loc[:, ['f9', 'f10', 'f11']]
+    x_test_slow_down = x_test.loc[:, ['f9', 'f10', 'f11']]
+    x_data_slow_down_val = get_mean_value(x_data_slow_down)
+    x_test_slow_down_val = get_mean_value(x_test_slow_down)
+    y_predict_slow_down_f9_f11,accuracy_slow_down_f9_f11=k_means(x_data_slow_down_val, y_data, x_test_slow_down_val, y_test, 0)
+    '''
+
+    '''
+    print('f12-f15')
+    x_data_slow_down = x_data.loc[:, ['f12', 'f13', 'f14','f15']]
+    x_test_slow_down = x_test.loc[:, ['f12', 'f13', 'f14','f15']]
+    x_data_slow_down_val = get_mean_value(x_data_slow_down)
+    x_test_slow_down_val = get_mean_value(x_test_slow_down)
+    k_means(x_data_slow_down_val, y_data, x_test_slow_down_val, y_test, 0)
+    '''
+    #bumps
+    #print('bumps')
+    #print('f0-f2')
+    if (os.path.exists('km_model_4.pkl') == False):
+        x_data_bumps = x_data.loc[:, ['f0', 'f1', 'f2']]
+        x_test_bumps = x_test.loc[:, ['f0', 'f1', 'f2']]
+        x_data_bumps_val = get_mean_value(x_data_bumps)
+        x_test_bumps_val = get_mean_value(x_test_bumps)
+        k_means(x_data_bumps_val, y_data, x_test_bumps_val, y_test, 4)
+    km_model_4 = joblib.load('km_model_4.pkl')
+    cent_points_4 = km_model_4.cluster_centers_
+
+    '''
+    print('f3-f5')
+    x_data_bumps = x_data.loc[:, ['f3', 'f4', 'f5']]
+    x_test_bumps = x_test.loc[:, ['f3', 'f4', 'f5']]
+    x_data_bumps_val = get_mean_value(x_data_bumps)
+    x_test_bumps_val = get_mean_value(x_test_bumps)
+    k_means(x_data_bumps_val, y_data, x_test_bumps_val, y_test, 4)
+
+    print('f6-f8')
+    x_data_bumps = x_data.loc[:, ['f6', 'f7', 'f8']]
+    x_test_bumps = x_test.loc[:, ['f6', 'f7', 'f8']]
+    x_data_bumps_val = get_mean_value(x_data_bumps)
+    x_test_bumps_val = get_mean_value(x_test_bumps)
+    k_means(x_data_bumps_val, y_data, x_test_bumps_val, y_test, 4)
+    '''
+    '''
+    #print('f9-f11')
+    x_data_bumps = x_data.loc[:, ['f9', 'f10', 'f11']]
+    x_test_bumps = x_test.loc[:, ['f9', 'f10', 'f11']]
+    x_data_bumps_val = get_mean_value(x_data_bumps)
+    x_test_bumps_val = get_mean_value(x_test_bumps)
+    y_predict_bumps_f9_f11,accuracy_bumps_f9_f11=k_means(x_data_bumps_val, y_data, x_test_bumps_val, y_test, 4)
+    '''
+
+    '''
+    print('f12-f15')
+    x_data_bumps = x_data.loc[:, ['f12', 'f13', 'f14','f15']]
+    x_test_bumps = x_test.loc[:, ['f12', 'f13', 'f14','f15']]
+    x_data_bumps_val = get_mean_value(x_data_bumps)
+    x_test_bumps_val = get_mean_value(x_test_bumps)
+    k_means(x_data_bumps_val, y_data, x_test_bumps_val, y_test, 4)
+    '''
+
+    y_test = np.array(y_test)
+    y_test = np.squeeze(y_test)
+    #y_result=[]
+    '''
+    print(y_predict_right_f0_f2)
+    print(Counter(y_predict_right_f0_f2))
+    print(y_predict_left_f0_f2)
+    print(Counter(y_predict_left_f0_f2))
+    print(y_predict_speed_up_f0_f2)
+    print(Counter(y_predict_speed_up_f0_f2))
+    print(y_predict_speed_up_f9_f11)
+    print(Counter(y_predict_speed_up_f9_f11))
+    print(y_predict_slow_down_f0_f2)
+    print(Counter(y_predict_slow_down_f0_f2))
+    print(y_predict_slow_down_f9_f11)
+    print(Counter(y_predict_slow_down_f9_f11))
+    print(y_predict_bumps_f0_f2)
+    print(Counter(y_predict_bumps_f0_f2))
+    print(y_predict_bumps_f9_f11)
+    print(Counter(y_predict_bumps_f9_f11))
+    '''
+    print(cent_points_0)
+    print(cent_points_1)
+    print(cent_points_2)
+    print(cent_points_3)
+    print(cent_points_4)
+
+    x_test_result=x_test.loc[:,['f0','f1','f2']]
+    x_test_result=get_mean_value(x_test_result)
+    x_test_result=np.array(x_test_result)
+    #print(x_test_result)
+    tmp_judge = [[[] for i in range(5)] for j in range(len(y_test))]
+    for i,val in enumerate(x_test_result):
+        tmp_judge[i][0]=np.sqrt(np.sum(np.square(val-cent_points_0[1])))
+        tmp_judge[i][1] = np.sqrt(np.sum(np.square(val - cent_points_1[1])))
+        tmp_judge[i][2] = np.sqrt(np.sum(np.square(val - cent_points_2[1])))
+        tmp_judge[i][3] = np.sqrt(np.sum(np.square(val - cent_points_3[1])))
+        tmp_judge[i][4] = np.sqrt(np.sum(np.square(val - cent_points_4[1])))
+    print(tmp_judge)
+    '''
+    for i,(t1,t2,t3,t4,t5,t6,t7,t8,t9) in enumerate(zip(y_predict_slow_down_f0_f2,
+                                                      y_predict_slow_down_f9_f11,
+                                                      y_predict_speed_up_f0_f2,
+                                                      y_predict_speed_up_f9_f11,
+                                                      y_predict_left_f0_f2,
+                                                      y_predict_right_f0_f2,
+                                                      y_predict_right_f12_f15,
+                                                      y_predict_bumps_f0_f2,
+                                                      y_predict_bumps_f9_f11)):
+        tmp_judge[i][0]=(y_predict_slow_down_f0_f2[i] * accuracy_slow_down_f0_f2 + y_predict_slow_down_f9_f11[i] * accuracy_slow_down_f9_f11)
+        tmp_judge[i][1]=(y_predict_speed_up_f0_f2[i] * accuracy_speed_up_f0_f2 + y_predict_speed_up_f9_f11[i] * accuracy_speed_up_f9_f11)
+        tmp_judge[i][2]=y_predict_left_f0_f2[i] * accuracy_left_f0_f2
+        tmp_judge[i][3]=(y_predict_right_f0_f2[i] * accuracy_right_f0_f2 + y_predict_right_f12_f15[i] * accuracy_right_f12_f15)
+        tmp_judge[i][4]=(y_predict_bumps_f0_f2[i] * accuracy_bumps_f0_f2 + y_predict_bumps_f9_f11[i]* accuracy_bumps_f9_f11)
+
+    print(tmp_judge)
+    accu_five=[]
+    accu_five.append(max(accuracy_slow_down_f0_f2,accuracy_slow_down_f9_f11))
+    accu_five.append(max(accuracy_speed_up_f0_f2,accuracy_speed_up_f9_f11))
+    accu_five.append(accuracy_left_f0_f2)
+    accu_five.append(max(accuracy_right_f0_f2,accuracy_right_f12_f15))
+    accu_five.append(max(accuracy_bumps_f0_f2,accuracy_bumps_f9_f11))
+    '''
+    y_result=[]
+    for i in range(len(y_test)):
+        y_result.append(tmp_judge[i].index(min(tmp_judge[i])))
+    y_result=np.array(y_result)
+    print(sum(y_result==y_test)/len(y_test))
+
+    #print(y_result)
+    #print(Counter(y_result))
+    #print(sum(y_result==y_test)/len(y_test))
+
+
+    #[u"减速", u"加速", u"左转", u"右转", u"颠簸"], [0, 1, 2, 3, 4]
+
+
+if __name__ == '__main__':
+    #k_means()
+    two_classification()
+    #x_data,y_data=get_data()
+    #readcsv_train.read_data_train()
+    #readcsv_size.read_test()
+    #two_classification_test()
+    #get_sqrt_value(x_data)
